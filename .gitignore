@@ -1,0 +1,7 @@
+# ignore test project stuff
+.vs/
+main.cpp
+win32-console.sln
+win32-console.vcxproj
+win32-console.vcxproj.filters
+win32-console.vcxproj.user
