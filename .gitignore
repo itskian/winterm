@@ -1,5 +1,6 @@
 # ignore test project stuff
 .vs/
+x64/
 main.cpp
 win32-console.sln
 win32-console.vcxproj
