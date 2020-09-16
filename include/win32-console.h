@@ -51,7 +51,7 @@ void initialize(vec2 const& size);
 void flush();
 
 // resize the console window and clear the backbuffer
-void resize(vec2 const& size);
+void size(vec2 const& size);
 
 // get the size of the console (measured in characters)
 inline vec2 size();
@@ -70,6 +70,9 @@ void show_cursor();
 
 // move the cursor to a specific position
 void move_cursor(vec2 const& position);
+
+// set the input color (when someone types in console)
+void input_color(attribute attrib);
 
 // shorthand for fill({ black, black }, L' ');
 void clear();
@@ -90,6 +93,9 @@ template <typename ...Args>
 void stringc(vec2 const& position, attribute const attrib,
     wchar_t const* const format, Args&& ...args);
 
+// the length of a string after formatting is applied
+template <typename ...Args>
+size_t string_len(wchar_t const* const format, Args&& ...args);
 
 //
 //
@@ -198,7 +204,7 @@ inline void string(vec2 const& position, attribute attrib,
 inline void initialize(vec2 const& size) {
   impl::state.handle = GetStdHandle(STD_OUTPUT_HANDLE);
 
-  resize(size);
+  w32c::size(size);
 
   auto const window = GetConsoleWindow();
 
@@ -222,7 +228,7 @@ inline void flush() {
 }
 
 // resize the console window and clear the backbuffer
-inline void resize(vec2 const& size) {
+inline void size(vec2 const& size) {
   impl::state.size = size;
 
   auto const num_chars = (size_t)size.x * (size_t)size.y;
@@ -282,6 +288,11 @@ inline void show_cursor() {
 inline void move_cursor(vec2 const& position) {
   SetConsoleCursorPosition(impl::state.handle,
     { (short)position.x, (short)position.y });
+}
+
+// set the input color (when someone types in console)
+inline void input_color(attribute const attrib) {
+  SetConsoleTextAttribute(impl::state.handle, *(uint16_t*)&attrib);
 }
 
 // shorthand for fill({ black, black }, L' ');
@@ -346,6 +357,22 @@ inline void stringc(vec2 const& position, attribute const attrib,
 
   // forward to real function
   impl::string(position, attrib, true, buffer);
+}
+
+// the length of a string after formatting is applied
+template <typename ...Args>
+inline size_t string_len(wchar_t const* const format, Args&& ...args) {
+  wchar_t buffer[1024];
+
+  // format our string
+  auto const swprintf_s_return_value = swprintf_s(
+    buffer, format, std::forward<Args>(args)...);
+
+  // maybe the buffer is too small
+  assert(swprintf_s_return_value != -1);
+
+  // forward to real function
+  return impl::string_length(buffer);
 }
 
 } // namespace w32c
