@@ -121,19 +121,23 @@ bool input(vec2 const& position, T& value);
 namespace impl {
 
 // stores the current state of the console
-struct {
+inline auto& state() {
+  struct {
 
-  // handle to the win32 console
-  HANDLE handle = nullptr;
+    // handle to the win32 console
+    HANDLE handle = nullptr;
 
-  // this is the size of our console in characters, not pixels
-  vec2 size = { 0, 0 };
+    // this is the size of our console in characters, not pixels
+    vec2 size = { 0, 0 };
 
-  // an array of characters that will be written to the console all at once
-  // to improve performance and reduce tearing
-  std::unique_ptr<CHAR_INFO[]> backbuffer;
+    // an array of characters that will be written to the console all at once
+    // to improve performance and reduce tearing
+    std::unique_ptr<CHAR_INFO[]> backbuffer;
 
-} state;
+  } static s;
+
+  return s;
+}
 
 // a string's true length after color formatting has been removed
 inline size_t string_length(wchar_t const* const str) {
@@ -159,7 +163,7 @@ inline size_t string_length(wchar_t const* const str) {
 inline void string(vec2 const& position, attribute attrib,
     bool const centered, wchar_t const* const str) {
   assert(position.x >= 0 && position.y >= 0);
-  assert(position.y < state.size.y);
+  assert(position.y < state().size.y);
 
   // number of characters in the string (but not necessarily the number of 
   // characters that will be drawn)
@@ -168,7 +172,7 @@ inline void string(vec2 const& position, attribute attrib,
     return;
 
   // first character index
-  auto start = (size_t)position.x + (size_t)position.y * state.size.x;
+  auto start = (size_t)position.x + (size_t)position.y * state().size.x;
 
   // apply centering if requested
   if (centered) {
@@ -184,7 +188,7 @@ inline void string(vec2 const& position, attribute attrib,
   // render each character in the string
   for (size_t i = 0; i < size; ++i) {
     // we reached the end
-    if (position.x + xpos >= state.size.x)
+    if (position.x + xpos >= state().size.x)
       break;
 
     // escape the # if it's prefixed by a backslash
@@ -205,7 +209,7 @@ inline void string(vec2 const& position, attribute attrib,
       continue;
     }
 
-    state.backbuffer[start + xpos] = {
+    state().backbuffer[start + xpos] = {
       str[i], *(uint16_t*)&attrib
     };
 
@@ -217,7 +221,7 @@ inline void string(vec2 const& position, attribute attrib,
 
 // setup the console
 inline void initialize(vec2 const& size) {
-  impl::state.handle = GetStdHandle(STD_OUTPUT_HANDLE);
+  impl::state().handle = GetStdHandle(STD_OUTPUT_HANDLE);
 
   w32c::size(size);
 
@@ -231,42 +235,42 @@ inline void initialize(vec2 const& size) {
 // write the backbuffer to the console window
 inline void flush() {
   SMALL_RECT region{
-    0, 0, (short)impl::state.size.x, (short)impl::state.size.y
+    0, 0, (short)impl::state().size.x, (short)impl::state().size.y
   };
 
   // write to console
   WriteConsoleOutput(
-    impl::state.handle,
-    impl::state.backbuffer.get(),
+    impl::state().handle,
+    impl::state().backbuffer.get(),
     { region.Right, region.Bottom },
     { 0, 0 }, &region);
 }
 
 // resize the console window and clear the backbuffer
 inline void size(vec2 const& size) {
-  impl::state.size = size;
+  impl::state().size = size;
 
   auto const num_chars = (size_t)size.x * (size_t)size.y;
   assert(num_chars > 0);
 
   // allocate the backbuffer
-  impl::state.backbuffer = std::make_unique<CHAR_INFO[]>(num_chars);
+  impl::state().backbuffer = std::make_unique<CHAR_INFO[]>(num_chars);
 
   // zero memory
-  memset(impl::state.backbuffer.get(), 0, num_chars * sizeof(CHAR_INFO));
+  memset(impl::state().backbuffer.get(), 0, num_chars * sizeof(CHAR_INFO));
 
   SMALL_RECT const rect{
     0, 0, (short)size.x - 1, (short)size.y - 1
   };
 
   // resize the actual console window
-  SetConsoleScreenBufferSize(impl::state.handle, { (short)size.x, (short)size.y });
-  SetConsoleWindowInfo(impl::state.handle, TRUE, &rect);
+  SetConsoleScreenBufferSize(impl::state().handle, { (short)size.x, (short)size.y });
+  SetConsoleWindowInfo(impl::state().handle, TRUE, &rect);
 }
 
 // get the size of the console (measured in characters)
 inline vec2 size() {
-  return impl::state.size;
+  return impl::state().size;
 }
 
 // get the console window title
@@ -284,37 +288,37 @@ inline void title(wchar_t const* const str) {
 // hide the blinking cursor
 inline void hide_cursor() {
   CONSOLE_CURSOR_INFO info;
-  GetConsoleCursorInfo(impl::state.handle, &info);
+  GetConsoleCursorInfo(impl::state().handle, &info);
 
   info.bVisible = false;
-  SetConsoleCursorInfo(impl::state.handle, &info);
+  SetConsoleCursorInfo(impl::state().handle, &info);
 }
 
 // unhide (show) the blinking cursor
 inline void show_cursor() {
   CONSOLE_CURSOR_INFO info;
-  GetConsoleCursorInfo(impl::state.handle, &info);
+  GetConsoleCursorInfo(impl::state().handle, &info);
 
   info.bVisible = true;
-  SetConsoleCursorInfo(impl::state.handle, &info);
+  SetConsoleCursorInfo(impl::state().handle, &info);
 }
 
 // move the cursor to a specific position
 inline void move_cursor(vec2 const& position) {
-  SetConsoleCursorPosition(impl::state.handle,
+  SetConsoleCursorPosition(impl::state().handle,
     { (short)position.x, (short)position.y });
 }
 
 // is the cursor visible?
 inline bool cursor_visible() {
   CONSOLE_CURSOR_INFO info;
-  GetConsoleCursorInfo(impl::state.handle, &info);
+  GetConsoleCursorInfo(impl::state().handle, &info);
   return info.bVisible;
 }
 
 // set the input color (when someone types in console)
 inline void input_color(attribute const attrib) {
-  SetConsoleTextAttribute(impl::state.handle, *(uint16_t*)&attrib);
+  SetConsoleTextAttribute(impl::state().handle, *(uint16_t*)&attrib);
 }
 
 // shorthand for fill({ black, black }, L' ');
@@ -326,8 +330,8 @@ inline void clear() {
 inline void fill(attribute const attrib, wchar_t const c) {
   // loop through every character and assign it our attribute and char
   for (size_t i = 0; i <
-      (size_t)impl::state.size.x * (size_t)impl::state.size.y; ++i) {
-    impl::state.backbuffer[i] = {
+      (size_t)impl::state().size.x * (size_t)impl::state().size.y; ++i) {
+    impl::state().backbuffer[i] = {
       c, *(uint16_t*)&attrib
     };
   }
@@ -335,8 +339,8 @@ inline void fill(attribute const attrib, wchar_t const c) {
 
 // render a horizontal line
 inline void hline(int const ypos, attribute const attrib, wchar_t const c) {
-  for (size_t i = 0; i < impl::state.size.x; ++i) {
-    impl::state.backbuffer[i + (size_t)ypos * impl::state.size.x] = {
+  for (size_t i = 0; i < impl::state().size.x; ++i) {
+    impl::state().backbuffer[i + (size_t)ypos * impl::state().size.x] = {
       c, *(uint16_t*)&attrib
     };
   }
@@ -344,8 +348,8 @@ inline void hline(int const ypos, attribute const attrib, wchar_t const c) {
 
 // render a vertical line
 inline void vline(int const xpos, attribute const attrib, wchar_t const c) {
-  for (size_t i = 0; i < impl::state.size.y; ++i) {
-    impl::state.backbuffer[xpos + i * impl::state.size.x] = {
+  for (size_t i = 0; i < impl::state().size.y; ++i) {
+    impl::state().backbuffer[xpos + i * impl::state().size.x] = {
       c, *(uint16_t*)&attrib
     };
   }
@@ -354,13 +358,13 @@ inline void vline(int const xpos, attribute const attrib, wchar_t const c) {
 // render a single character to the console
 inline void character(vec2 const& position, attribute const attrib, wchar_t const c) {
   // the index of this position in the character array
-  auto const index = position.x + position.y * impl::state.size.x;
+  auto const index = position.x + position.y * impl::state().size.x;
 
   // make sure we're in bounds
-  assert(position.x >= 0 && position.x < impl::state.size.x);
-  assert(position.y >= 0 && position.y < impl::state.size.y);
+  assert(position.x >= 0 && position.x < impl::state().size.x);
+  assert(position.y >= 0 && position.y < impl::state().size.y);
 
-  impl::state.backbuffer[index] = {
+  impl::state().backbuffer[index] = {
     c, *(uint16_t*)&attrib
   };
 }
