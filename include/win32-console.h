@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <iostream>
+#include <utility>
 #include <string>
 #include <memory>
 
@@ -94,13 +95,15 @@ void vline(int xpos, attribute attrib, wchar_t c);
 void character(vec2 const& position, attribute attrib, wchar_t c);
 
 // render a string to the console
+// returns the start and end position of the string
 template <typename ...Args>
-void string(vec2 const& position, attribute attrib, 
+std::pair<int, int> string(vec2 const& position, attribute attrib, 
     wchar_t const* format, Args&& ...args);
 
 // render a horizontally centered string to the console
+// returns the start and end position of the string
 template <typename ...Args>
-void stringc(vec2 const& position, attribute const attrib,
+std::pair<int, int> stringc(vec2 const& position, attribute const attrib,
     wchar_t const* const format, Args&& ...args);
 
 // the length of a string after formatting is applied
@@ -160,7 +163,7 @@ inline size_t string_length(wchar_t const* const str) {
 }
 
 // render a string to the console
-inline void string(vec2 const& position, attribute attrib,
+inline std::pair<int, int> string(vec2 const& position, attribute attrib,
     bool const centered, wchar_t const* const str) {
   assert(position.x >= 0 && position.y >= 0);
   assert(position.y < state().size.y);
@@ -168,8 +171,6 @@ inline void string(vec2 const& position, attribute attrib,
   // number of characters in the string (but not necessarily the number of 
   // characters that will be drawn)
   auto const size = lstrlenW(str);
-  if (size <= 0)
-    return;
 
   // first character index
   auto start = (size_t)position.x + (size_t)position.y * state().size.x;
@@ -215,6 +216,9 @@ inline void string(vec2 const& position, attribute attrib,
 
     xpos += 1;
   }
+
+  auto const first = (int)start - (position.y * state().size.x);
+  return { first, first + (int)xpos - 1 };
 }
 
 } // namespace impl
@@ -371,7 +375,7 @@ inline void character(vec2 const& position, attribute const attrib, wchar_t cons
 
 // render a string to the console
 template <typename ...Args>
-inline void string(vec2 const& position, attribute const attrib, 
+inline std::pair<int, int> string(vec2 const& position, attribute const attrib,
     wchar_t const* const format, Args&& ...args) {
   wchar_t buffer[1024];
 
@@ -383,12 +387,12 @@ inline void string(vec2 const& position, attribute const attrib,
   assert(swprintf_s_return_value != -1);
 
   // forward to real function
-  impl::string(position, attrib, false, buffer);
+  return impl::string(position, attrib, false, buffer);
 }
 
 // render a horizontally centered string to the console
 template <typename ...Args>
-inline void stringc(vec2 const& position, attribute const attrib,
+inline std::pair<int, int> stringc(vec2 const& position, attribute const attrib,
     wchar_t const* const format, Args&& ...args) {
   wchar_t buffer[1024];
 
@@ -400,7 +404,7 @@ inline void stringc(vec2 const& position, attribute const attrib,
   assert(swprintf_s_return_value != -1);
 
   // forward to real function
-  impl::string(position, attrib, true, buffer);
+  return impl::string(position, attrib, true, buffer);
 }
 
 // the length of a string after formatting is applied
