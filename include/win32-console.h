@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <assert.h>
 #include <stdint.h>
+#include <iostream>
 #include <string>
 #include <memory>
 
