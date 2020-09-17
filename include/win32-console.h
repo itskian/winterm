@@ -71,6 +71,9 @@ void show_cursor();
 // move the cursor to a specific position
 void move_cursor(vec2 const& position);
 
+// is the cursor visible?
+bool cursor_visible();
+
 // set the input color (when someone types in console)
 void input_color(attribute attrib);
 
@@ -96,6 +99,10 @@ void stringc(vec2 const& position, attribute const attrib,
 // the length of a string after formatting is applied
 template <typename ...Args>
 size_t string_len(wchar_t const* const format, Args&& ...args);
+
+// get user input
+template <typename T>
+bool input(vec2 const& position, T& value);
 
 //
 //
@@ -159,9 +166,10 @@ inline void string(vec2 const& position, attribute attrib,
   // apply centering if requested
   if (centered) {
     auto const len = string_length(str);
-    if (len > start)
-      start = 0;
-    start -= len / 2;
+    if (len / 2 > position.x)
+      start -= position.x;
+    else
+      start -= len / 2;
   }
 
   size_t xpos = 0;
@@ -290,6 +298,13 @@ inline void move_cursor(vec2 const& position) {
     { (short)position.x, (short)position.y });
 }
 
+// is the cursor visible?
+inline bool cursor_visible() {
+  CONSOLE_CURSOR_INFO info;
+  GetConsoleCursorInfo(impl::state.handle, &info);
+  return info.bVisible;
+}
+
 // set the input color (when someone types in console)
 inline void input_color(attribute const attrib) {
   SetConsoleTextAttribute(impl::state.handle, *(uint16_t*)&attrib);
@@ -373,6 +388,48 @@ inline size_t string_len(wchar_t const* const format, Args&& ...args) {
 
   // forward to real function
   return impl::string_length(buffer);
+}
+
+// get user input
+template <typename T>
+inline bool input(vec2 const& position, T& value) {
+  auto const should_hide_cursor = !cursor_visible();
+  bool success = true;
+
+  // make sure we know where to type
+  show_cursor();
+  move_cursor(position);
+
+  if constexpr (std::is_same_v<T, std::string>)
+    std::getline(std::cin, value);
+  else if constexpr (std::is_same_v<T, std::wstring>)
+    std::getline(std::wcin, value);
+  else {
+    // ghetto fix for uint8_t being treated as a char when we really want 
+    // it to be treated as an int instead
+    if constexpr (std::is_same_v<T, uint8_t>) {
+      short tmp;
+
+      success = (bool)(std::cin >> tmp) &&
+        tmp >= 0 && tmp < 256;
+
+      value = (uint8_t)tmp;
+    }
+    else
+      success = (bool)(std::cin >> value);
+
+    if (!success) {
+      // clear invalid input state
+      std::cin.clear();
+      std::cin.ignore(INT_MAX, '\n');
+    }
+  }
+
+  // reset our cursor state basically
+  if (should_hide_cursor)
+    hide_cursor();
+
+  return success;
 }
 
 } // namespace w32c
