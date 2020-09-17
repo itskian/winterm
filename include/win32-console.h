@@ -84,6 +84,12 @@ void clear();
 // fill the console with a single character
 void fill(attribute attrib, wchar_t c);
 
+// render a horizontal line
+void hline(int ypos, attribute attrib, wchar_t c);
+
+// render a vertical line
+void vline(int xpos, attribute attrib, wchar_t c);
+
 // render a single character to the console
 void character(vec2 const& position, attribute attrib, wchar_t c);
 
@@ -322,6 +328,24 @@ inline void fill(attribute const attrib, wchar_t const c) {
   for (size_t i = 0; i <
       (size_t)impl::state.size.x * (size_t)impl::state.size.y; ++i) {
     impl::state.backbuffer[i] = {
+      c, *(uint16_t*)&attrib
+    };
+  }
+}
+
+// render a horizontal line
+inline void hline(int const ypos, attribute const attrib, wchar_t const c) {
+  for (size_t i = 0; i < impl::state.size.x; ++i) {
+    impl::state.backbuffer[i + (size_t)ypos * impl::state.size.x] = {
+      c, *(uint16_t*)&attrib
+    };
+  }
+}
+
+// render a vertical line
+inline void vline(int const xpos, attribute const attrib, wchar_t const c) {
+  for (size_t i = 0; i < impl::state.size.y; ++i) {
+    impl::state.backbuffer[xpos + i * impl::state.size.x] = {
       c, *(uint16_t*)&attrib
     };
   }
