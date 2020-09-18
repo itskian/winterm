@@ -76,6 +76,9 @@ void move_cursor(vec2 const& position);
 // is the cursor visible?
 bool cursor_visible();
 
+// empty the input buffer
+void reset_input();
+
 // set the input color (when someone types in console)
 void input_color(attribute attrib);
 
@@ -128,7 +131,8 @@ inline auto& state() {
   struct {
 
     // handle to the win32 console
-    HANDLE handle = nullptr;
+    HANDLE out_handle = nullptr,
+      in_handle = nullptr;
 
     // this is the size of our console in characters, not pixels
     vec2 size = { 0, 0 };
@@ -225,7 +229,8 @@ inline std::pair<int, int> string(vec2 const& position, attribute attrib,
 
 // setup the console
 inline void initialize(vec2 const& size) {
-  impl::state().handle = GetStdHandle(STD_OUTPUT_HANDLE);
+  impl::state().out_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+  impl::state().in_handle = GetStdHandle(STD_INPUT_HANDLE);
 
   w32c::size(size);
 
@@ -244,7 +249,7 @@ inline void flush() {
 
   // write to console
   WriteConsoleOutput(
-    impl::state().handle,
+    impl::state().out_handle,
     impl::state().backbuffer.get(),
     { region.Right, region.Bottom },
     { 0, 0 }, &region);
@@ -268,8 +273,8 @@ inline void size(vec2 const& size) {
   };
 
   // resize the actual console window
-  SetConsoleScreenBufferSize(impl::state().handle, { (short)size.x, (short)size.y });
-  SetConsoleWindowInfo(impl::state().handle, TRUE, &rect);
+  SetConsoleScreenBufferSize(impl::state().out_handle, { (short)size.x, (short)size.y });
+  SetConsoleWindowInfo(impl::state().out_handle, TRUE, &rect);
 }
 
 // get the size of the console (measured in characters)
@@ -292,37 +297,42 @@ inline void title(wchar_t const* const str) {
 // hide the blinking cursor
 inline void hide_cursor() {
   CONSOLE_CURSOR_INFO info;
-  GetConsoleCursorInfo(impl::state().handle, &info);
+  GetConsoleCursorInfo(impl::state().out_handle, &info);
 
   info.bVisible = false;
-  SetConsoleCursorInfo(impl::state().handle, &info);
+  SetConsoleCursorInfo(impl::state().out_handle, &info);
 }
 
 // unhide (show) the blinking cursor
 inline void show_cursor() {
   CONSOLE_CURSOR_INFO info;
-  GetConsoleCursorInfo(impl::state().handle, &info);
+  GetConsoleCursorInfo(impl::state().out_handle, &info);
 
   info.bVisible = true;
-  SetConsoleCursorInfo(impl::state().handle, &info);
+  SetConsoleCursorInfo(impl::state().out_handle, &info);
 }
 
 // move the cursor to a specific position
 inline void move_cursor(vec2 const& position) {
-  SetConsoleCursorPosition(impl::state().handle,
+  SetConsoleCursorPosition(impl::state().out_handle,
     { (short)position.x, (short)position.y });
 }
 
 // is the cursor visible?
 inline bool cursor_visible() {
   CONSOLE_CURSOR_INFO info;
-  GetConsoleCursorInfo(impl::state().handle, &info);
+  GetConsoleCursorInfo(impl::state().out_handle, &info);
   return info.bVisible;
+}
+
+// empty the input buffer
+inline void reset_input() {
+  FlushConsoleInputBuffer(impl::state().in_handle);
 }
 
 // set the input color (when someone types in console)
 inline void input_color(attribute const attrib) {
-  SetConsoleTextAttribute(impl::state().handle, *(uint16_t*)&attrib);
+  SetConsoleTextAttribute(impl::state().out_handle, *(uint16_t*)&attrib);
 }
 
 // shorthand for fill({ black, black }, L' ');
