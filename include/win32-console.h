@@ -36,6 +36,11 @@ enum : uint16_t {
   intense = 0b1000
 };
 
+enum option {
+  cursor,       // show/hide the cursor
+  highlighting  // enable/hide text highlighting
+};
+
 struct attribute {
   attribute(uint16_t const f, uint16_t const b = black)
     : foreground(f), background(b), _other(0) {}
@@ -64,17 +69,17 @@ std::wstring title();
 // set the console window title
 void title(wchar_t const* str);
 
-// hide the blinking cursor
-void hide_cursor();
-
-// unhide (show) the blinking cursor
-void show_cursor();
-
 // move the cursor to a specific position
 void move_cursor(vec2 const& position);
 
-// is the cursor visible?
-bool cursor_visible();
+// enable a console option
+void enable(option opt);
+
+// disable a console option
+void disable(option opt);
+
+// is this console option currently enabled?
+bool enabled(option opt);
 
 // empty the input buffer
 void reset_input();
@@ -100,22 +105,23 @@ void character(vec2 const& position, attribute attrib, wchar_t c);
 // render a string to the console
 // returns the start and end position of the string
 template <typename ...Args>
-std::pair<int, int> string(vec2 const& position, attribute attrib, 
-    wchar_t const* format, Args&& ...args);
+std::pair<int, int> string(vec2 const& position, 
+    attribute attrib, wchar_t const* format, Args&& ...args);
 
 // render a horizontally centered string to the console
 // returns the start and end position of the string
 template <typename ...Args>
-std::pair<int, int> stringc(vec2 const& position, attribute const attrib,
-    wchar_t const* const format, Args&& ...args);
+std::pair<int, int> stringc(vec2 const& position, 
+    attribute attrib, wchar_t const* format, Args&& ...args);
 
 // the length of a string after formatting is applied
 template <typename ...Args>
-size_t string_len(wchar_t const* const format, Args&& ...args);
+size_t string_len(wchar_t const* format, Args&& ...args);
 
 // get user input
 template <typename T>
 bool input(vec2 const& position, T& value);
+
 
 //
 //
@@ -225,6 +231,54 @@ inline std::pair<int, int> string(vec2 const& position, attribute attrib,
   return { first, first + (int)xpos - 1 };
 }
 
+// hide the blinking cursor
+inline void disable_cursor() {
+  CONSOLE_CURSOR_INFO info;
+  GetConsoleCursorInfo(state().out_handle, &info);
+
+  info.bVisible = false;
+  SetConsoleCursorInfo(state().out_handle, &info);
+}
+
+// unhide (show) the blinking cursor
+inline void enable_cursor() {
+  CONSOLE_CURSOR_INFO info;
+  GetConsoleCursorInfo(state().out_handle, &info);
+
+  info.bVisible = true;
+  SetConsoleCursorInfo(state().out_handle, &info);
+}
+
+// is the cursor visible?
+inline bool cursor_enabled() {
+  CONSOLE_CURSOR_INFO info;
+  GetConsoleCursorInfo(state().out_handle, &info);
+  return info.bVisible;
+}
+
+// make it so you cant highlight stuff in the console
+inline void disable_highlighting() {
+  DWORD mode;
+  GetConsoleMode(state().in_handle, &mode);
+  SetConsoleMode(w32c::impl::state().in_handle,
+    (mode & ~ENABLE_QUICK_EDIT_MODE) | ENABLE_EXTENDED_FLAGS);
+}
+
+// enable highlighting
+inline void enable_highlighting() {
+  DWORD mode;
+  GetConsoleMode(state().in_handle, &mode);
+  SetConsoleMode(w32c::impl::state().in_handle, 
+    (mode | ENABLE_QUICK_EDIT_MODE) | ENABLE_EXTENDED_FLAGS);
+}
+
+// is highlighting currently enabled
+inline bool highlighting_enabled() {
+  DWORD mode;
+  GetConsoleMode(state().in_handle, &mode);
+  return (mode & ENABLE_EXTENDED_FLAGS) && (mode & ENABLE_QUICK_EDIT_MODE);
+}
+
 } // namespace impl
 
 // setup the console
@@ -294,40 +348,51 @@ inline void title(wchar_t const* const str) {
   SetConsoleTitleW(str);
 }
 
-// hide the blinking cursor
-inline void hide_cursor() {
-  CONSOLE_CURSOR_INFO info;
-  GetConsoleCursorInfo(impl::state().out_handle, &info);
-
-  info.bVisible = false;
-  SetConsoleCursorInfo(impl::state().out_handle, &info);
-}
-
-// unhide (show) the blinking cursor
-inline void show_cursor() {
-  CONSOLE_CURSOR_INFO info;
-  GetConsoleCursorInfo(impl::state().out_handle, &info);
-
-  info.bVisible = true;
-  SetConsoleCursorInfo(impl::state().out_handle, &info);
-}
-
 // move the cursor to a specific position
 inline void move_cursor(vec2 const& position) {
   SetConsoleCursorPosition(impl::state().out_handle,
     { (short)position.x, (short)position.y });
 }
 
-// is the cursor visible?
-inline bool cursor_visible() {
-  CONSOLE_CURSOR_INFO info;
-  GetConsoleCursorInfo(impl::state().out_handle, &info);
-  return info.bVisible;
-}
-
 // empty the input buffer
 inline void reset_input() {
   FlushConsoleInputBuffer(impl::state().in_handle);
+}
+
+// enable a console option
+inline void enable(option const opt) {
+  switch (opt) {
+  case cursor:
+    impl::enable_cursor();
+    break;
+  case highlighting:
+    impl::enable_highlighting();
+    break;
+  }
+}
+
+// disable a console option
+inline void disable(option const opt) {
+  switch (opt) {
+  case cursor:
+    impl::disable_cursor();
+    break;
+  case highlighting:
+    impl::disable_highlighting();
+    break;
+  }
+}
+
+// is this console option currently enabled?
+inline bool enabled(option const opt) {
+  switch (opt) {
+  case cursor:
+    return impl::cursor_enabled();
+  case highlighting:
+    return impl::highlighting_enabled();
+  }
+
+  return false;
 }
 
 // set the input color (when someone types in console)
@@ -436,11 +501,11 @@ inline size_t string_len(wchar_t const* const format, Args&& ...args) {
 // get user input
 template <typename T>
 inline bool input(vec2 const& position, T& value) {
-  auto const should_hide_cursor = !cursor_visible();
+  auto const should_hide_cursor = !enabled(cursor);
   bool success = true;
 
   // make sure we know where to type
-  show_cursor();
+  enable(cursor);
   move_cursor(position);
 
   if constexpr (std::is_same_v<T, std::string>)
@@ -470,7 +535,7 @@ inline bool input(vec2 const& position, T& value) {
 
   // reset our cursor state basically
   if (should_hide_cursor)
-    hide_cursor();
+    disable(cursor);
 
   return success;
 }
