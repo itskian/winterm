@@ -72,6 +72,10 @@ void title(wchar_t const* str);
 // move the cursor to a specific position
 void move_cursor(vec2 const& position);
 
+// get the position of the mouse relative to the console window
+// this is measured in characters, not pixels
+vec2 mouse_position();
+
 // enable a console option
 void enable(option opt);
 
@@ -352,6 +356,22 @@ inline void title(wchar_t const* const str) {
 inline void move_cursor(vec2 const& position) {
   SetConsoleCursorPosition(impl::state().out_handle,
     { (short)position.x, (short)position.y });
+}
+
+// get the position of the mouse relative to the console window
+// this is measured in characters, not pixels
+inline vec2 mouse_position() {
+  POINT point;
+  GetCursorPos(&point);
+
+  // adjust the cursor position to be relative to the console window
+  ScreenToClient(GetConsoleWindow(), &point);
+
+  // get the font size
+  CONSOLE_FONT_INFO info;
+  GetCurrentConsoleFont(w32c::impl::state().out_handle, FALSE, &info);
+
+  return { point.x / info.dwFontSize.X, point.y / info.dwFontSize.Y };
 }
 
 // empty the input buffer
