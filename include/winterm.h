@@ -330,9 +330,27 @@ inline void size(vec2 const& size) {
     0, 0, (short)size.x - 1, (short)size.y - 1
   };
 
+  // the following code is super retarded but it's needed (i think)
+  // just read the remarks section in the following pages
+  // https://docs.microsoft.com/en-us/windows/console/setconsolewindowinfo
+  // https://docs.microsoft.com/en-us/windows/console/setconsolescreenbuffersize
+
+  CONSOLE_SCREEN_BUFFER_INFO info;
+  GetConsoleScreenBufferInfo(impl::state().out_handle, &info);
+
+  // too wide
+  if (rect.Right > info.dwMaximumWindowSize.X)
+    SetConsoleScreenBufferSize(impl::state().out_handle, { (short)size.x, info.dwSize.Y });
+
+  GetConsoleScreenBufferInfo(impl::state().out_handle, &info);
+
+  // too tall
+  if (rect.Bottom > info.dwMaximumWindowSize.Y)
+    SetConsoleScreenBufferSize(impl::state().out_handle, { info.dwSize.X, (short)size.y });
+
   // resize the actual console window
-  SetConsoleScreenBufferSize(impl::state().out_handle, { (short)size.x, (short)size.y });
   SetConsoleWindowInfo(impl::state().out_handle, TRUE, &rect);
+  SetConsoleScreenBufferSize(impl::state().out_handle, { (short)size.x, (short)size.y });
 }
 
 // get the size of the console (measured in characters)
