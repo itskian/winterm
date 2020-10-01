@@ -9,7 +9,7 @@
 #include <memory>
 
 
-namespace w32c {
+namespace term {
 
 struct vec2 {
   int x = 0, y = 0;
@@ -161,7 +161,7 @@ inline size_t string_length(wchar_t const* const str) {
   auto const size = lstrlenW(str);
   size_t real_length = 0;
 
-  for (size_t i = 0; i < size; ++i) {
+  for (int i = 0; i < size; ++i) {
     // escape the # if it's prefixed by a backslash
     if (i + 1 < size && str[i] == L'\\' && str[i + 1] == L'#')
       i += 1;
@@ -192,16 +192,16 @@ inline std::pair<int, int> string(vec2 const& position, attribute attrib,
   // apply centering if requested
   if (centered) {
     auto const len = string_length(str);
-    if (len / 2 > position.x)
+    if (len / 2 > (size_t)position.x)
       start -= position.x;
     else
       start -= len / 2;
   }
 
-  size_t xpos = 0;
+  int xpos = 0;
 
   // render each character in the string
-  for (size_t i = 0; i < size; ++i) {
+  for (int i = 0; i < size; ++i) {
     // we reached the end
     if (position.x + xpos >= state().size.x)
       break;
@@ -264,7 +264,7 @@ inline bool cursor_enabled() {
 inline void disable_highlighting() {
   DWORD mode;
   GetConsoleMode(state().in_handle, &mode);
-  SetConsoleMode(w32c::impl::state().in_handle,
+  SetConsoleMode(impl::state().in_handle,
     (mode & ~ENABLE_QUICK_EDIT_MODE) | ENABLE_EXTENDED_FLAGS);
 }
 
@@ -272,7 +272,7 @@ inline void disable_highlighting() {
 inline void enable_highlighting() {
   DWORD mode;
   GetConsoleMode(state().in_handle, &mode);
-  SetConsoleMode(w32c::impl::state().in_handle, 
+  SetConsoleMode(impl::state().in_handle, 
     (mode | ENABLE_QUICK_EDIT_MODE) | ENABLE_EXTENDED_FLAGS);
 }
 
@@ -290,7 +290,7 @@ inline void initialize(vec2 const& size) {
   impl::state().out_handle = GetStdHandle(STD_OUTPUT_HANDLE);
   impl::state().in_handle = GetStdHandle(STD_INPUT_HANDLE);
 
-  w32c::size(size);
+  term::size(size);
 
   auto const window = GetConsoleWindow();
 
@@ -369,7 +369,7 @@ inline vec2 mouse_position() {
 
   // get the font size
   CONSOLE_FONT_INFO info;
-  GetCurrentConsoleFont(w32c::impl::state().out_handle, FALSE, &info);
+  GetCurrentConsoleFont(impl::state().out_handle, FALSE, &info);
 
   return { point.x / info.dwFontSize.X, point.y / info.dwFontSize.Y };
 }
@@ -438,7 +438,7 @@ inline void fill(attribute const attrib, wchar_t const c) {
 
 // render a horizontal line
 inline void hline(int const ypos, attribute const attrib, wchar_t const c) {
-  for (size_t i = 0; i < impl::state().size.x; ++i) {
+  for (int i = 0; i < impl::state().size.x; ++i) {
     impl::state().backbuffer[i + (size_t)ypos * impl::state().size.x] = {
       c, *(uint16_t*)&attrib
     };
@@ -447,7 +447,7 @@ inline void hline(int const ypos, attribute const attrib, wchar_t const c) {
 
 // render a vertical line
 inline void vline(int const xpos, attribute const attrib, wchar_t const c) {
-  for (size_t i = 0; i < impl::state().size.y; ++i) {
+  for (int i = 0; i < impl::state().size.y; ++i) {
     impl::state().backbuffer[xpos + i * impl::state().size.x] = {
       c, *(uint16_t*)&attrib
     };
@@ -560,4 +560,4 @@ inline bool input(vec2 const& position, T& value) {
   return success;
 }
 
-} // namespace w32c
+} // namespace term

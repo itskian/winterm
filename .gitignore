@@ -2,7 +2,7 @@
 .vs/
 x64/
 main.cpp
-win32-console.sln
-win32-console.vcxproj
-win32-console.vcxproj.filters
-win32-console.vcxproj.user
+winterm.sln
+winterm.vcxproj
+winterm.vcxproj.filters
+winterm.vcxproj.user
