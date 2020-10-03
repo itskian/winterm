@@ -52,7 +52,7 @@ struct attribute {
 static_assert(sizeof(attribute) == 2, "attribute is wrong size");
 
 // setup the console
-void initialize(vec2 const& size);
+void initialize();
 
 // write the backbuffer to the console window
 void flush();
@@ -286,11 +286,15 @@ inline bool highlighting_enabled() {
 } // namespace impl
 
 // setup the console
-inline void initialize(vec2 const& size) {
+inline void initialize() {
   impl::state().out_handle = GetStdHandle(STD_OUTPUT_HANDLE);
   impl::state().in_handle = GetStdHandle(STD_INPUT_HANDLE);
 
-  term::size(size);
+  CONSOLE_SCREEN_BUFFER_INFO info;
+  GetConsoleScreenBufferInfo(impl::state().out_handle, &info);
+
+  // seems kinda reduntant, but basically just removes the scrollbar
+  size({ info.srWindow.Right + 1, info.srWindow.Bottom + 1 });
 
   auto const window = GetConsoleWindow();
 
