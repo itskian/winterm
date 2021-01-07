@@ -124,7 +124,7 @@ size_t string_len(wchar_t const* format, Args&& ...args);
 
 // get user input
 template <typename T>
-bool input(vec2 const& position, T& value);
+bool input(vec2 position, T& value);
 
 
 //
@@ -146,6 +146,9 @@ inline auto& state() {
 
     // this is the size of our console in characters, not pixels
     vec2 size = { 0, 0 };
+
+    // the input color
+    attribute input_attrib = { white, black };
 
     // an array of characters that will be written to the console all at once
     // to improve performance and reduce tearing
@@ -439,7 +442,12 @@ inline bool enabled(option const opt) {
 
 // set the input color (when someone types in console)
 inline void input_color(attribute const attrib) {
-  SetConsoleTextAttribute(impl::state().out_handle, *(uint16_t*)&attrib);
+  impl::state().input_attrib = attrib;
+}
+
+// get the input color
+inline attribute input_color() {
+  return impl::state().input_attrib;
 }
 
 // shorthand for fill({ black, black }, L' ');
@@ -542,44 +550,54 @@ inline size_t string_len(wchar_t const* const format, Args&& ...args) {
 
 // get user input
 template <typename T>
-inline bool input(vec2 const& position, T& value) {
+inline bool input(vec2 position, T& value) {
   auto const should_hide_cursor = !enabled(cursor);
-  bool success = true;
+  auto const color = input_color();
 
   // make sure we know where to type
   enable(cursor);
-  move_cursor(position);
 
-  if constexpr (std::is_same_v<T, std::string>)
-    std::getline(std::cin, value);
-  else if constexpr (std::is_same_v<T, std::wstring>)
-    std::getline(std::wcin, value);
-  else {
-    // ghetto fix for uint8_t being treated as a char when we really want 
-    // it to be treated as an int instead
-    if constexpr (std::is_same_v<T, uint8_t>) {
-      short tmp;
+  // holds the current input buffer
+  std::wstring s;
 
-      success = (bool)(std::cin >> tmp) &&
-        tmp >= 0 && tmp < 256;
+  while (true) {
+    move_cursor(position);
 
-      value = (uint8_t)tmp;
+    // get input
+    auto const c = _getwch();
+
+    if (std::isprint(c)) {
+      // draw the character
+      character(position, color, c);
+
+      // ++
+      position.x += 1;
+      s.push_back(c);
+    } else {
+      // enter
+      if (c == 0x0D)
+        break;
+      else if (c == 0x08) {
+        if (position.x > 0 && !s.empty()) {
+          // erase the last character
+          position.x -= 1;
+          character(position, color, L' ');
+          s.pop_back();
+        }
+      }
     }
-    else
-      success = (bool)(std::cin >> value);
 
-    if (!success) {
-      // clear invalid input state
-      std::cin.clear();
-      std::cin.ignore(INT_MAX, '\n');
-    }
+    term::flush();
   }
 
   // reset our cursor state basically
   if (should_hide_cursor)
     disable(cursor);
 
-  return success;
+  if constexpr (std::is_same_v<T, std::wstring>)
+    value = std::move(s);
+
+  return true;
 }
 
 } // namespace term
